@@ -1,11 +1,11 @@
 {
-  "name": "zmq-test",
+  "name": "ffi-zeromq",
   "module": "index.ts",
   "type": "module",
   "devDependencies": {
     "@types/bun": "latest"
   },
   "peerDependencies": {
-    "typescript": "^5"
+    "typescript": "^5.8.3"
   }
 }
