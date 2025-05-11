@@ -1,7 +1,7 @@
 // pub.ts
 import { ZMQ_PUB, Context, Socket } from "./lib/ffi-zeromq";
 
-const endpoint = "tcp://*:5555"; // Publish on all interfaces, port 5555
+const endpoint = "ipc:///tmp/zeromq_test.ipc"; // Publish via IPC
 const topic = "UPDATES";
 
 console.log("Starting ZeroMQ Publisher...");

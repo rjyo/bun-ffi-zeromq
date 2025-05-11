@@ -1,7 +1,7 @@
 // sub.ts
 import { ZMQ_SUB, ZMQ_SUBSCRIBE, Context, Socket } from "./lib/ffi-zeromq";
 
-const endpoint = "tcp://localhost:5555"; // Connect to publisher
+const endpoint = "ipc:///tmp/zeromq_test.ipc"; // Connect to publisher via IPC
 const topicString = "UPDATES"; // Subscribe to "UPDATES" topic
 
 console.log("Starting ZeroMQ Subscriber...");
