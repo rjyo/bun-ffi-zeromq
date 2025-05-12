@@ -9,8 +9,7 @@ import {
   getEpochTimeFromHrtime,
 } from "./lib/utils";
 
-const DEFAULT_ENDPOINT = "tcp://127.0.0.1:5555";
-// const DEFAULT_ENDPOINT = "ipc:///tmp/zeromq_test.ipc";
+const DEFAULT_ENDPOINT = "ipc:///tmp/nng_test.ipc";
 const DEFAULT_TOPIC = "UPDATES";
 
 // Parse command line arguments
@@ -92,7 +91,7 @@ async function runSubscriber() {
 
     while (true) {
       try {
-        const combinedMessage = subscriberSocket.receive(32 * 1024);
+        const combinedMessage = subscriberSocket.receive(32 * 1024); // 32KB
         if (combinedMessage.length === 0) {
           continue;
         }
