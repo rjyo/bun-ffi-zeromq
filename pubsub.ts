@@ -14,7 +14,7 @@ const DEFAULT_TOPIC = "UPDATES";
 // Message type definitions
 interface Message {
   id: number;
-  timestamp: number;
+  timestamp: string; // Changed to string to store BigInt as string
   content: string;
   metadata?: {
     source?: string;
@@ -23,13 +23,30 @@ interface Message {
   };
 }
 
+// Calibration state
+let hrToEpochOffsetNs: bigint;
+
+// Initialize time calibration
+function calibrateTime() {
+  const nowMs = Date.now();
+  const hrNow = process.hrtime.bigint();
+  hrToEpochOffsetNs = BigInt(nowMs) * BigInt(1_000_000) - hrNow;
+  console.log("Time calibration complete");
+}
+
+// Convert hrtime to epoch time in nanoseconds
+function getEpochTimeFromHrtime(): bigint {
+  const hrNow = process.hrtime.bigint();
+  return hrNow + hrToEpochOffsetNs;
+}
+
 // Message encoding/decoding utilities using JSON
-const encodeMessage = (message: Message): Buffer => {
-  return Buffer.from(JSON.stringify(message));
+const encodeMessage = (message: Message): string => {
+  return JSON.stringify(message);
 };
 
-const decodeMessage = (data: Buffer): Message => {
-  return JSON.parse(data.toString());
+const decodeMessage = (data: string): Message => {
+  return JSON.parse(data);
 };
 
 // Parse command line arguments
@@ -43,6 +60,7 @@ if (!mode || (mode !== "pub" && mode !== "sub")) {
 
 async function runPublisher() {
   console.log("Starting ZeroMQ Publisher...");
+  calibrateTime(); // Calibrate time at startup
   let context: Context | null = null;
   let publisherSocket: Socket | null = null;
 
@@ -60,9 +78,10 @@ async function runPublisher() {
 
     let count = 0;
     while (true) {
+      const sendTimeNs = getEpochTimeFromHrtime();
       const message: Message = {
         id: count,
-        timestamp: Date.now(),
+        timestamp: sendTimeNs.toString(), // Convert BigInt to string for JSON
         content: `Message ${count}`,
         metadata: {
           source: "publisher",
@@ -71,21 +90,19 @@ async function runPublisher() {
         },
       };
 
-      // Encode to JSON
-      const messageBuffer = encodeMessage(message);
+      // Encode to JSON string
+      const messageStr = encodeMessage(message);
 
       // Send topic as first part with ZMQ_SNDMORE flag
       const topicBuffer = Buffer.from(DEFAULT_TOPIC);
       publisherSocket.send(topicBuffer, ZMQ_SNDMORE);
 
-      // Send actual message as second part
-      const bytesSent = publisherSocket.send(messageBuffer);
-
-      const jsonSize = messageBuffer.length;
+      // Send actual message as string
+      const bytesSent = publisherSocket.send(messageStr);
 
       console.log(`Sent message ${count}:`, {
         bytes: bytesSent,
-        size: jsonSize,
+        size: messageStr.length,
         message: message,
       });
 
@@ -109,6 +126,7 @@ async function runPublisher() {
 
 async function runSubscriber() {
   console.log("Starting ZeroMQ Subscriber...");
+  calibrateTime(); // Calibrate time at startup
   let context: Context | null = null;
   let subscriberSocket: Socket | null = null;
 
@@ -128,14 +146,16 @@ async function runSubscriber() {
     while (true) {
       try {
         // Receive all parts of the message
-        const parts: Buffer[] = [];
+        const parts: (Buffer | string)[] = [];
         let hasMore = true;
 
         while (hasMore) {
-          // Use receiveBinary for raw binary data
-          const part = subscriberSocket.receiveBinary(4096);
+          // First part (topic) will be binary, second part (message) will be string
+          const part =
+            parts.length === 0
+              ? subscriberSocket.receiveBinary(4096) // Topic is binary
+              : subscriberSocket.receive(); // Message is string
           parts.push(part);
-          // Check if there are more parts
           hasMore = subscriberSocket.getOption(ZMQ_RCVMORE) === 1;
         }
 
@@ -145,27 +165,29 @@ async function runSubscriber() {
         }
 
         // We know we have exactly 2 parts at this point
-        const [topicBuffer, messageBuffer] = parts as [Buffer, Buffer];
+        const [topicBuffer, messageStr] = parts as [Buffer, string];
 
-        // Convert topic to string (it's safe to do this for the topic)
+        // Convert topic to string
         const topic = topicBuffer.toString("utf-8");
 
         // Decode the JSON data
-        const message = decodeMessage(messageBuffer);
+        const message = decodeMessage(messageStr);
 
-        // Calculate time difference in microseconds
-        const now = Date.now();
-        const receiveTime = now;
-        const sendTime = message.timestamp;
-        const timeDiff = Number(receiveTime - sendTime);
+        // Calculate time difference in nanoseconds
+        const receiveTimeNs = getEpochTimeFromHrtime();
+        const sendTimeNs = BigInt(message.timestamp); // Convert string back to BigInt
+        const latencyNs = receiveTimeNs - sendTimeNs;
+        const latencyUs = Number(latencyNs) / 1_000; // Convert to microseconds
 
         console.log(`Received message ${message.id}:`, {
           topic,
-          timestamp: new Date(message.timestamp).toISOString(),
+          timestamp: new Date(
+            Number(sendTimeNs / BigInt(1_000_000))
+          ).toISOString(), // Convert to ms for display
           content: message.content,
           metadata: message.metadata,
-          size: messageBuffer.length,
-          delay_ms: timeDiff.toFixed(3), // Display delay in milliseconds with 3 decimal places
+          size: messageStr.length,
+          latency_us: latencyUs.toFixed(3),
         });
       } catch (err) {
         console.error("Error processing message:", err);
