@@ -5,6 +5,7 @@ import {
   ZMQ_SNDMORE,
   ZMQ_SUB,
   ZMQ_SUBSCRIBE,
+  ZMQ_RCVMORE,
 } from "./lib/ffi-zeromq";
 
 const DEFAULT_ENDPOINT = "ipc:///tmp/zeromq_test.ipc";
@@ -22,13 +23,13 @@ interface Message {
   };
 }
 
-// Message encoding/decoding utilities
-const encodeMessage = (message: Message): string => {
-  return JSON.stringify(message);
+// Message encoding/decoding utilities using JSON
+const encodeMessage = (message: Message): Buffer => {
+  return Buffer.from(JSON.stringify(message));
 };
 
-const decodeMessage = (data: string): Message => {
-  return JSON.parse(data);
+const decodeMessage = (data: Buffer): Message => {
+  return JSON.parse(data.toString());
 };
 
 // Parse command line arguments
@@ -70,16 +71,21 @@ async function runPublisher() {
         },
       };
 
-      const encodedMessage = encodeMessage(message);
+      // Encode to JSON
+      const messageBuffer = encodeMessage(message);
 
       // Send topic as first part with ZMQ_SNDMORE flag
-      publisherSocket.send(DEFAULT_TOPIC, ZMQ_SNDMORE);
+      const topicBuffer = Buffer.from(DEFAULT_TOPIC);
+      publisherSocket.send(topicBuffer, ZMQ_SNDMORE);
+
       // Send actual message as second part
-      const bytesSent = publisherSocket.send(encodedMessage);
+      const bytesSent = publisherSocket.send(messageBuffer);
+
+      const jsonSize = messageBuffer.length;
 
       console.log(`Sent message ${count}:`, {
         bytes: bytesSent,
-        messageSize: Buffer.byteLength(encodedMessage, "utf-8"),
+        size: jsonSize,
         message: message,
       });
 
@@ -120,27 +126,62 @@ async function runSubscriber() {
     console.log(`Subscriber connected to ${DEFAULT_ENDPOINT}`);
 
     while (true) {
-      // Receive topic (first part)
-      const topic = subscriberSocket.receive(1024);
-      // Receive message (second part)
-      const encodedMessage = subscriberSocket.receive(4096);
-
-      const messageSize = Buffer.byteLength(encodedMessage, "utf-8");
-      console.log(`Received message size: ${messageSize} bytes`);
-
       try {
-        const message = decodeMessage(encodedMessage);
+        // Receive all parts of the message
+        const parts: Buffer[] = [];
+        let hasMore = true;
+
+        while (hasMore) {
+          // Use receiveBinary for raw binary data
+          const part = subscriberSocket.receiveBinary(4096);
+          parts.push(part);
+          // Check if there are more parts
+          hasMore = subscriberSocket.getOption(ZMQ_RCVMORE) === 1;
+        }
+
+        if (parts.length !== 2) {
+          console.error(`Expected 2 message parts, got ${parts.length}`);
+          continue;
+        }
+
+        // We know we have exactly 2 parts at this point
+        const [topicBuffer, messageBuffer] = parts as [Buffer, Buffer];
+
+        // Convert topic to string (it's safe to do this for the topic)
+        const topic = topicBuffer.toString("utf-8");
+
+        // Decode the JSON data
+        const message = decodeMessage(messageBuffer);
+
         console.log(`Received message ${message.id}:`, {
           topic,
           timestamp: new Date(message.timestamp).toISOString(),
           content: message.content,
           metadata: message.metadata,
-          messageSize,
+          size: messageBuffer.length,
         });
       } catch (err) {
-        console.error("Error decoding message:", err);
-        console.error("Raw encoded message:", encodedMessage);
-        console.error("Message length:", encodedMessage.length);
+        console.error("Error processing message:", err);
+        if (err instanceof Error) {
+          console.error("Error details:", err.message);
+        }
+        // Log the message parts for debugging
+        const parts: Buffer[] = [];
+        let hasMore = true;
+        while (hasMore) {
+          const part = subscriberSocket.receiveBinary(4096);
+          parts.push(part);
+          hasMore = subscriberSocket.getOption(ZMQ_RCVMORE) === 1;
+        }
+        console.error(
+          "Message parts:",
+          parts.map((part) =>
+            Array.from(part)
+              .slice(0, 32)
+              .map((b) => b.toString(16).padStart(2, "0"))
+              .join(" ")
+          )
+        );
       }
     }
   } catch (err) {

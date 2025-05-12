@@ -8,6 +8,7 @@ export const ZMQ_SUB = 2;
 export const ZMQ_SUBSCRIBE = 6;
 export const ZMQ_DONTWAIT = 1;
 export const ZMQ_SNDMORE = 2; // If you need multipart messages
+export const ZMQ_RCVMORE = 13; // Add RCVMORE constant
 
 // Attempt to determine the library name
 // 1. Check for an environment variable ZMQ_CUSTOM_LIB_PATH
@@ -61,6 +62,10 @@ const { symbols } = dlopen(ZMQ_LIB_PATH, {
   zmq_strerror: {
     args: [FFIType.i32], // int errnum
     returns: FFIType.cstring, // const char*
+  },
+  zmq_getsockopt: {
+    args: [FFIType.ptr, FFIType.i32, FFIType.ptr, FFIType.ptr], // void* socket, int option, void* optval, size_t* optvallen
+    returns: FFIType.i32, // int
   },
 });
 
@@ -249,5 +254,43 @@ export class Socket {
       end = bytesReceived - 1;
     }
     return buffer.toString("utf-8", 0, end);
+  }
+
+  receiveBinary(bufferSize: number = 1024, flags: number = 0): Buffer {
+    if (!this._ptr) throw new Error("Socket is closed or invalid.");
+    const buffer = Buffer.alloc(bufferSize);
+    const bytesReceived = zmq.zmq_recv(
+      this._ptr,
+      ptr(buffer),
+      bufferSize,
+      flags
+    );
+
+    // checkReturnCode will throw if bytesReceived is -1
+    checkReturnCode(bytesReceived, "zmq_recv");
+
+    // Return a new buffer with exact size using Uint8Array.prototype.slice to ensure a proper copy
+    return Buffer.from(
+      Uint8Array.prototype.slice.call(buffer, 0, bytesReceived)
+    );
+  }
+
+  getOption(option: number): number {
+    if (!this._ptr) throw new Error("Socket is closed or invalid.");
+
+    // For ZMQ_RCVMORE, we need to get an int value
+    const optval = Buffer.alloc(4); // 4 bytes for int32
+    const optvallen = Buffer.alloc(8); // 8 bytes for size_t
+    optvallen.writeBigUInt64LE(BigInt(4), 0); // Set optvallen to 4 (size of int32)
+
+    const rc = zmq.zmq_getsockopt(
+      this._ptr,
+      option,
+      ptr(optval),
+      ptr(optvallen)
+    );
+    checkReturnCode(rc, "zmq_getsockopt");
+
+    return optval.readInt32LE(0);
   }
 }
