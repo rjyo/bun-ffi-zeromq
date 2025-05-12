@@ -153,12 +153,19 @@ async function runSubscriber() {
         // Decode the JSON data
         const message = decodeMessage(messageBuffer);
 
+        // Calculate time difference in microseconds
+        const now = Date.now();
+        const receiveTime = now;
+        const sendTime = message.timestamp;
+        const timeDiff = Number(receiveTime - sendTime);
+
         console.log(`Received message ${message.id}:`, {
           topic,
           timestamp: new Date(message.timestamp).toISOString(),
           content: message.content,
           metadata: message.metadata,
           size: messageBuffer.length,
+          delay_ms: timeDiff.toFixed(3), // Display delay in milliseconds with 3 decimal places
         });
       } catch (err) {
         console.error("Error processing message:", err);
