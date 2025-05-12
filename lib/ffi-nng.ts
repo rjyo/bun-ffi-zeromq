@@ -1,6 +1,5 @@
 // ffi-nng.ts
-import type { Pointer } from "bun:ffi";
-import { CString, dlopen, FFIType, ptr, suffix } from "bun:ffi";
+import { dlopen, FFIType, ptr, suffix } from "bun:ffi";
 
 // NNG constants
 const SUBSCRIBE_STR = Buffer.from("sub:subscribe\0");
