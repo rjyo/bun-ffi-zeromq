@@ -13,7 +13,6 @@ export const ZMQ_SNDMORE = 2; // If you need multipart messages
 // 1. Check for an environment variable ZMQ_CUSTOM_LIB_PATH
 // 2. Fallback to libzmq.[platform_suffix] (e.g., libzmq.dylib, libzmq.so, libzmq.dll)
 // 3. As a last resort, try just "libzmq"
-// const PLATFORM_PATH = "/opt/homebrew/lib";
 const ZMQ_LIB_PATH = process.env.ZMQ_CUSTOM_LIB_PATH || `libzmq.${suffix}`;
 
 console.log(`Attempting to load ZeroMQ library from: ${ZMQ_LIB_PATH}`);
