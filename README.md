@@ -11,16 +11,6 @@ Both implementations provide:
 - Error handling and recovery
 - Support for different transport protocols
 
-### Key Differences
-
-| Feature | ZeroMQ | NNG |
-|---------|---------|-----|
-| Library Age | Mature, battle-tested | Modern, lightweight |
-| Default Transport | TCP (`tcp://*:5555`) | IPC (`ipc:///tmp/nng_test.ipc`) |
-| Message Format | Raw strings | Structured JSON with metadata |
-| Topic Filtering | Basic | Enhanced with metadata |
-| Installation | `libzmq3-dev` | `libnng-dev` |
-
 ## Prerequisites
 
 1. **Bun:** Ensure you have Bun installed. Visit [bun.sh](https://bun.sh/) for installation instructions.
@@ -134,7 +124,7 @@ Both implementations support flexible library loading:
 ### ZeroMQ (`lib/ffi-zeromq.ts`)
 
 *   Defines ZeroMQ constants (e.g., `ZMQ_PUB`, `ZMQ_SUB`)
-*   Uses `Bun.FFI.dlopen()` to load `libzmq`
+*   Uses `Bun.FFI.dlopen()` to load `libzmq` with support for custom paths via `ZMQ_CUSTOM_LIB_PATH`
 *   Provides `Context` and `Socket` classes for:
     - Context management (`zmq_ctx_new`, `zmq_ctx_term`)
     - Socket operations (`zmq_socket`, `zmq_bind`, `zmq_connect`)
@@ -144,7 +134,7 @@ Both implementations support flexible library loading:
 ### NNG (`lib/ffi-nng.ts`)
 
 *   Defines NNG constants and protocols (`NNG_PUB0`, `NNG_SUB0`)
-*   Uses `Bun.FFI.dlopen()` to load `libnng`
+*   Uses `Bun.FFI.dlopen()` to load `libnng` with support for custom paths via `NNG_CUSTOM_LIB_PATH`
 *   Provides a `Socket` class with:
     - Socket management (`nng_pub0_open`, `nng_sub0_open`)
     - Topic subscription handling
@@ -193,20 +183,20 @@ Performance monitoring features available in both implementations:
 
 Choose ZeroMQ if you need:
 - A battle-tested, mature library
-- Simple, raw message passing
-- TCP-based communication
 - Maximum compatibility
+- Familiar ZeroMQ API design
 
 Choose NNG if you need:
 - Modern, lightweight implementation
-- IPC-based communication
-- Enhanced topic filtering with metadata
 - More modern API design
+- Potentially better performance (benchmark for your use case)
 
 Both implementations:
-- Support structured messages with metadata
+- Use IPC for transport by default
+- Support structured JSON messages with metadata
 - Include performance monitoring (latency, timestamps)
 - Provide error handling and recovery
 - Use the same shared utilities for message handling
+- Support custom library paths via environment variables
 
 The choice often depends on your specific requirements and existing infrastructure.
