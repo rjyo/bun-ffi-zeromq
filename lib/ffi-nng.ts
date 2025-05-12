@@ -1,25 +1,25 @@
 // ffi-nng.ts
-import { dlopen, FFIType, ptr, suffix } from "bun:ffi";
+import { dlopen, FFIType, ptr, suffix } from 'bun:ffi'
 
 // NNG constants
-const SUBSCRIBE_STR = Buffer.from("sub:subscribe\0");
-const UNSUBSCRIBE_STR = Buffer.from("sub:unsubscribe\0");
-export const NNG_OPT_PUB_SUB_SUBSCRIBE = ptr(SUBSCRIBE_STR);
-export const NNG_OPT_PUB_SUB_UNSUBSCRIBE = ptr(UNSUBSCRIBE_STR);
-export const NNG_FLAG_NONBLOCK = 1;
-export const NNG_FLAG_ALLOC = 2;
+const SUBSCRIBE_STR = Buffer.from('sub:subscribe\0')
+const UNSUBSCRIBE_STR = Buffer.from('sub:unsubscribe\0')
+export const NNG_OPT_PUB_SUB_SUBSCRIBE = ptr(SUBSCRIBE_STR)
+export const NNG_OPT_PUB_SUB_UNSUBSCRIBE = ptr(UNSUBSCRIBE_STR)
+export const NNG_FLAG_NONBLOCK = 1
+export const NNG_FLAG_ALLOC = 2
 
 // NNG protocol names
-export const NNG_PUB0 = "pub0";
-export const NNG_SUB0 = "sub0";
+export const NNG_PUB0 = 'pub0'
+export const NNG_SUB0 = 'sub0'
 
 // NNG socket type (handle)
-type NngSocket = number;
+type NngSocket = number
 
 // Attempt to determine the library name
-const NNG_LIB_PATH = process.env.NNG_CUSTOM_LIB_PATH || `libnng.${suffix}`;
+const NNG_LIB_PATH = process.env.NNG_CUSTOM_LIB_PATH || `libnng.${suffix}`
 
-console.log(`Attempting to load NNG library from: ${NNG_LIB_PATH}`);
+console.log(`Attempting to load NNG library from: ${NNG_LIB_PATH}`)
 
 const { symbols } = dlopen(NNG_LIB_PATH, {
   // Core functions
@@ -69,181 +69,168 @@ const { symbols } = dlopen(NNG_LIB_PATH, {
     args: [FFIType.u32, FFIType.cstring, FFIType.ptr, FFIType.ptr], // nng_socket_t, const char*, void*, size_t*
     returns: FFIType.i32,
   },
-});
+})
 
-export const nng = symbols;
+export const nng = symbols
 
 export function checkReturnCode(rc: number, operation: string): void {
   if (rc !== 0) {
-    const errorMsg = nng.nng_strerror(rc);
-    throw new Error(
-      `NNG operation '${operation}' failed: ${errorMsg.toString()} (rc ${rc})`
-    );
+    const errorMsg = nng.nng_strerror(rc)
+    throw new Error(`NNG operation '${operation}' failed: ${errorMsg.toString()} (rc ${rc})`)
   }
 }
 
 export class Socket {
-  private _socket: NngSocket | null;
-  private _type: string;
+  private _socket: NngSocket | null
+  private _type: string
 
   constructor(type: string) {
-    this._type = type;
-    this._socket = null;
+    this._type = type
+    this._socket = null
 
     // Create a pointer to store the socket handle
-    const socketArray = new Uint32Array(1);
-    const socketPtr = ptr(socketArray);
+    const socketArray = new Uint32Array(1)
+    const socketPtr = ptr(socketArray)
 
-    let rc: number;
+    let rc: number
     if (type === NNG_PUB0) {
-      rc = nng.nng_pub0_open(socketPtr);
+      rc = nng.nng_pub0_open(socketPtr)
     } else if (type === NNG_SUB0) {
-      rc = nng.nng_sub0_open(socketPtr);
+      rc = nng.nng_sub0_open(socketPtr)
     } else {
-      throw new Error(`Unsupported socket type: ${type}`);
+      throw new Error(`Unsupported socket type: ${type}`)
     }
 
     if (rc !== 0) {
-      const errorMsg = nng.nng_strerror(rc);
-      throw new Error(
-        `Failed to create NNG socket: ${errorMsg.toString()} (rc ${rc})`
-      );
+      const errorMsg = nng.nng_strerror(rc)
+      throw new Error(`Failed to create NNG socket: ${errorMsg.toString()} (rc ${rc})`)
     }
 
     // Read the socket handle from the output parameter
-    const socketValue = Number(socketArray[0]);
+    const socketValue = Number(socketArray[0])
     if (socketValue === 0) {
-      throw new Error("Failed to get valid socket handle from NNG");
+      throw new Error('Failed to get valid socket handle from NNG')
     }
-    this._socket = socketValue;
-    console.log(`Created NNG socket with handle: ${this._socket}`);
+    this._socket = socketValue
+    console.log(`Created NNG socket with handle: ${this._socket}`)
   }
 
   get socket(): NngSocket | null {
-    return this._socket;
+    return this._socket
   }
 
   close(): void {
     if (this._socket) {
-      nng.nng_close(this._socket);
-      this._socket = null;
+      nng.nng_close(this._socket)
+      this._socket = null
     }
   }
 
   listen(endpoint: string): void {
-    if (!this._socket) throw new Error("Socket is closed or invalid.");
-    const endpointBuffer = Buffer.from(endpoint + "\0");
-    console.log(
-      `Attempting to listen on ${endpoint} with socket ${this._socket}`
-    );
-    const rc = nng.nng_listen(this._socket, endpointBuffer, null, 0);
+    if (!this._socket) throw new Error('Socket is closed or invalid.')
+    const endpointBuffer = Buffer.from(endpoint + '\0')
+    console.log(`Attempting to listen on ${endpoint} with socket ${this._socket}`)
+    const rc = nng.nng_listen(this._socket, endpointBuffer, null, 0)
     if (rc !== 0) {
-      const errorMsg = nng.nng_strerror(rc);
-      throw new Error(
-        `Failed to listen on socket: ${errorMsg.toString()} (rc ${rc})`
-      );
+      const errorMsg = nng.nng_strerror(rc)
+      throw new Error(`Failed to listen on socket: ${errorMsg.toString()} (rc ${rc})`)
     }
-    console.log(`Successfully listening on ${endpoint}`);
+    console.log(`Successfully listening on ${endpoint}`)
   }
 
   dial(endpoint: string): void {
-    if (!this._socket) throw new Error("Socket is closed or invalid.");
-    const endpointBuffer = Buffer.from(endpoint + "\0");
-    const rc = nng.nng_dial(this._socket, endpointBuffer, null, 0);
-    checkReturnCode(rc, "nng_dial");
+    if (!this._socket) throw new Error('Socket is closed or invalid.')
+    const endpointBuffer = Buffer.from(endpoint + '\0')
+    const rc = nng.nng_dial(this._socket, endpointBuffer, null, 0)
+    checkReturnCode(rc, 'nng_dial')
   }
 
   subscribe(topic: string): void {
-    if (!this._socket) throw new Error("Socket is closed or invalid.");
+    if (!this._socket) throw new Error('Socket is closed or invalid.')
     if (this._type !== NNG_SUB0) {
-      throw new Error("Subscribe is only valid for SUB sockets");
+      throw new Error('Subscribe is only valid for SUB sockets')
     }
-    const topicBuffer = Buffer.from(topic);
+    const topicBuffer = Buffer.from(topic)
     const rc = nng.nng_setopt(
       this._socket,
       NNG_OPT_PUB_SUB_SUBSCRIBE,
       topicBuffer,
       topicBuffer.length
-    );
-    checkReturnCode(rc, "nng_setopt(subscribe)");
+    )
+    checkReturnCode(rc, 'nng_setopt(subscribe)')
   }
 
   unsubscribe(topic: string): void {
-    if (!this._socket) throw new Error("Socket is closed or invalid.");
+    if (!this._socket) throw new Error('Socket is closed or invalid.')
     if (this._type !== NNG_SUB0) {
-      throw new Error("Unsubscribe is only valid for SUB sockets");
+      throw new Error('Unsubscribe is only valid for SUB sockets')
     }
-    const topicBuffer = Buffer.from(topic);
+    const topicBuffer = Buffer.from(topic)
     const rc = nng.nng_setopt(
       this._socket,
       NNG_OPT_PUB_SUB_UNSUBSCRIBE,
       topicBuffer,
       topicBuffer.length
-    );
-    checkReturnCode(rc, "nng_setopt(unsubscribe)");
+    )
+    checkReturnCode(rc, 'nng_setopt(unsubscribe)')
   }
 
   send(message: string | Buffer, flags: number = 0): number {
-    if (!this._socket) throw new Error("Socket is closed or invalid.");
-    const buffer = typeof message === "string" ? Buffer.from(message) : message;
+    if (!this._socket) throw new Error('Socket is closed or invalid.')
+    const buffer = typeof message === 'string' ? Buffer.from(message) : message
 
-    const rc = nng.nng_send(this._socket, buffer, buffer.length, flags);
+    const rc = nng.nng_send(this._socket, buffer, buffer.length, flags)
     if (rc < 0) {
-      checkReturnCode(rc, "nng_send");
+      checkReturnCode(rc, 'nng_send')
     }
-    return rc;
+    return rc
   }
 
   receive(bufferSize: number = 1024, flags: number = 0): string {
-    if (!this._socket) throw new Error("Socket is closed or invalid.");
-    const buffer = Buffer.alloc(bufferSize);
-    const sizeArray = new BigUint64Array(1);
-    const sizePtr = ptr(sizeArray);
+    if (!this._socket) throw new Error('Socket is closed or invalid.')
+    const buffer = Buffer.alloc(bufferSize)
+    const sizeArray = new BigUint64Array(1)
+    const sizePtr = ptr(sizeArray)
 
     // Set initial size to buffer size
-    sizeArray[0] = BigInt(bufferSize);
+    sizeArray[0] = BigInt(bufferSize)
 
-    const rc = nng.nng_recv(this._socket, buffer, sizePtr, flags);
+    const rc = nng.nng_recv(this._socket, buffer, sizePtr, flags)
     if (rc < 0) {
-      checkReturnCode(rc, "nng_recv");
+      checkReturnCode(rc, 'nng_recv')
     }
 
     // Get the actual size of the received message
-    const size = Number(sizeArray[0]);
+    const size = Number(sizeArray[0])
     if (size === 0) {
-      return ""; // Return empty string for zero-length messages
+      return '' // Return empty string for zero-length messages
     }
 
     // Only convert the actual received bytes to string
-    const message = buffer.toString("utf8", 0, size);
-    console.log(
-      `NNG receive: rc=${rc}, size=${size}, message length=${message.length}`
-    );
-    return message;
+    return buffer.toString('utf8', 0, size)
   }
 
   receiveBinary(bufferSize: number = 1024, flags: number = 0): Buffer {
-    if (!this._socket) throw new Error("Socket is closed or invalid.");
-    const buffer = Buffer.alloc(bufferSize);
-    const sizeArray = new BigUint64Array(1);
-    const sizePtr = ptr(sizeArray);
+    if (!this._socket) throw new Error('Socket is closed or invalid.')
+    const buffer = Buffer.alloc(bufferSize)
+    const sizeArray = new BigUint64Array(1)
+    const sizePtr = ptr(sizeArray)
 
     // Set initial size to buffer size
-    sizeArray[0] = BigInt(bufferSize);
+    sizeArray[0] = BigInt(bufferSize)
 
-    const rc = nng.nng_recv(this._socket, buffer, sizePtr, flags);
+    const rc = nng.nng_recv(this._socket, buffer, sizePtr, flags)
     if (rc < 0) {
-      checkReturnCode(rc, "nng_recv");
+      checkReturnCode(rc, 'nng_recv')
     }
 
     // Get the actual size of the received message
-    const size = Number(sizeArray[0]);
+    const size = Number(sizeArray[0])
     if (size === 0) {
-      return Buffer.alloc(0); // Return empty buffer for zero-length messages
+      return Buffer.alloc(0) // Return empty buffer for zero-length messages
     }
 
     // Only return the actual received bytes
-    console.log(`NNG receiveBinary: rc=${rc}, size=${size}`);
-    return buffer.slice(0, size);
+    return buffer.slice(0, size)
   }
 }
