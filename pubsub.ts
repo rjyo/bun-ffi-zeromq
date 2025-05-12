@@ -2,10 +2,10 @@ import {
   Context,
   Socket,
   ZMQ_PUB,
+  ZMQ_RCVMORE,
   ZMQ_SNDMORE,
   ZMQ_SUB,
   ZMQ_SUBSCRIBE,
-  ZMQ_RCVMORE,
 } from "./lib/ffi-zeromq";
 
 const DEFAULT_ENDPOINT = "ipc:///tmp/zeromq_test.ipc";
@@ -93,16 +93,13 @@ async function runPublisher() {
       // Encode to JSON string
       const messageStr = encodeMessage(message);
 
-      // Send topic as first part with ZMQ_SNDMORE flag
-      const topicBuffer = Buffer.from(DEFAULT_TOPIC);
-      publisherSocket.send(topicBuffer, ZMQ_SNDMORE);
-
-      // Send actual message as string
-      const bytesSent = publisherSocket.send(messageStr);
+      // Combine topic and message with a delimiter
+      const combinedMessage = `${DEFAULT_TOPIC}|${messageStr}`;
+      const bytesSent = publisherSocket.send(combinedMessage);
 
       console.log(`Sent message ${count}:`, {
         bytes: bytesSent,
-        size: messageStr.length,
+        size: combinedMessage.length,
         message: message,
       });
 
@@ -145,30 +142,16 @@ async function runSubscriber() {
 
     while (true) {
       try {
-        // Receive all parts of the message
-        const parts: (Buffer | string)[] = [];
-        let hasMore = true;
+        // Receive single message
+        const combinedMessage = subscriberSocket.receive();
 
-        while (hasMore) {
-          // First part (topic) will be binary, second part (message) will be string
-          const part =
-            parts.length === 0
-              ? subscriberSocket.receiveBinary(4096) // Topic is binary
-              : subscriberSocket.receive(); // Message is string
-          parts.push(part);
-          hasMore = subscriberSocket.getOption(ZMQ_RCVMORE) === 1;
-        }
+        // Split topic and message
+        const [topic, messageStr] = combinedMessage.split("|");
 
-        if (parts.length !== 2) {
-          console.error(`Expected 2 message parts, got ${parts.length}`);
+        if (!topic || !messageStr) {
+          console.error("Invalid message format");
           continue;
         }
-
-        // We know we have exactly 2 parts at this point
-        const [topicBuffer, messageStr] = parts as [Buffer, string];
-
-        // Convert topic to string
-        const topic = topicBuffer.toString("utf-8");
 
         // Decode the JSON data
         const message = decodeMessage(messageStr);
