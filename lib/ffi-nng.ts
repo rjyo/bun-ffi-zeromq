@@ -231,6 +231,6 @@ export class Socket {
     }
 
     // Only return the actual received bytes
-    return buffer.slice(0, size)
+    return Buffer.from(Uint8Array.prototype.slice.call(buffer, 0, size))
   }
 }
