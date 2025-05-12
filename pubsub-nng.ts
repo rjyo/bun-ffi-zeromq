@@ -10,6 +10,7 @@ import {
 } from "./lib/utils";
 
 const DEFAULT_ENDPOINT = "tcp://127.0.0.1:5555";
+// const DEFAULT_ENDPOINT = "ipc:///tmp/zeromq_test.ipc";
 const DEFAULT_TOPIC = "UPDATES";
 
 // Parse command line arguments

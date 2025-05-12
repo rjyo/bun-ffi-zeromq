@@ -187,16 +187,11 @@ export class Socket {
   send(message: string | Buffer, flags: number = 0): number {
     if (!this._socket) throw new Error("Socket is closed or invalid.");
     const buffer = typeof message === "string" ? Buffer.from(message) : message;
-    console.log(
-      `NNG send: socket=${this._socket}, message length=${buffer.length}, flags=${flags}`
-    );
-    console.log(`NNG send message (hex): ${buffer.toString("hex")}`);
 
     const rc = nng.nng_send(this._socket, buffer, buffer.length, flags);
     if (rc < 0) {
       checkReturnCode(rc, "nng_send");
     }
-    console.log(`NNG send result: rc=${rc}`);
     return rc;
   }
 
