@@ -12,21 +12,9 @@ export interface Message {
   };
 }
 
-// Calibration state
-let hrToEpochOffsetNs: bigint;
-
-// Initialize time calibration
-export function calibrateTime(): void {
-  const nowMs = Date.now();
-  const hrNow = process.hrtime.bigint();
-  hrToEpochOffsetNs = BigInt(nowMs) * BigInt(1_000_000) - hrNow;
-  console.log("Time calibration complete");
-}
-
 // Convert hrtime to epoch time in nanoseconds
-export function getEpochTimeFromHrtime(): bigint {
-  const hrNow = process.hrtime.bigint();
-  return hrNow + hrToEpochOffsetNs;
+export function getEpochTimeNs(): bigint {
+  return process.hrtime.bigint();
 }
 
 // Message encoding/decoding utilities using JSON

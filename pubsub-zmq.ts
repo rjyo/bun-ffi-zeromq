@@ -7,14 +7,7 @@ import {
   ZMQ_SUBSCRIBE,
 } from "./lib/ffi-zeromq";
 import type { Message } from "./lib/utils";
-import {
-  calibrateTime,
-  getEpochTimeFromHrtime,
-  encodeMessage,
-  decodeMessage,
-  formatTimestamp,
-  calculateLatencyUs,
-} from "./lib/utils";
+import { decodeMessage, encodeMessage } from "./lib/utils";
 
 const DEFAULT_ENDPOINT = "ipc:///tmp/zeromq_test.ipc";
 const DEFAULT_TOPIC = "UPDATES";
@@ -30,7 +23,6 @@ if (!mode || (mode !== "pub" && mode !== "sub")) {
 
 async function runPublisher() {
   console.log("Starting ZeroMQ Publisher...");
-  calibrateTime();
   let context: Context | null = null;
   let publisherSocket: Socket | null = null;
 
@@ -44,10 +36,9 @@ async function runPublisher() {
 
     let count = 0;
     while (true) {
-      const sendTimeNs = getEpochTimeFromHrtime();
       const message: Message = {
         id: count,
-        timestamp: sendTimeNs.toString(),
+        timestamp: new Date().toISOString(),
         content: `Message ${count}`,
         metadata: {
           source: "publisher",
@@ -84,7 +75,6 @@ async function runPublisher() {
 
 async function runSubscriber() {
   console.log("Starting ZeroMQ Subscriber...");
-  calibrateTime();
   let context: Context | null = null;
   let subscriberSocket: Socket | null = null;
 
@@ -108,17 +98,12 @@ async function runSubscriber() {
         }
 
         const message = decodeMessage(messageStr);
-        const receiveTimeNs = getEpochTimeFromHrtime();
-        const sendTimeNs = BigInt(message.timestamp);
-        const latencyUs = calculateLatencyUs(sendTimeNs, receiveTimeNs);
 
         console.log(`Received message ${message.id}:`, {
           topic,
-          timestamp: formatTimestamp(sendTimeNs),
           content: message.content,
           metadata: message.metadata,
           size: messageStr.length,
-          latency_us: latencyUs.toFixed(3),
         });
       } catch (err) {
         console.error("Error processing message:", err);
